@@ -1,0 +1,30 @@
+struct addrinfo
+- used to prep the socket address structures for subsequent use. It’s also used in host name lookups, 
+and service name lookups.
+
+struct sockaddr
+- r holds socket address information for many types of sockets
+- sa_data contains dest address and port number but is tedious to pack
+
+struct sockaddr_in 
+- to deal with sockaddr - we can cast back and forth between this and sockaddr (sockaddr is used for connect)
+- in stands for Internet
+- used for IPv4
+- sin_zero (which is
+included to pad the structure to the length of a struct sockaddr) should be set to all zeros with the function
+memset()
+- sin_family should be set to "AF_INET"
+
+inet_pton()
+- converts string ip addr with "." and ":" to struct in_addr based upon format specified
+- presentation to network
+- note: inet_addr and inet_aton are obsolete and don't work
+- returns -1 on error, or 0 if the address is messed up
+
+getaddrinfo() - preparation for launch
+- sets up structs we need
+- 
+
+p25
+http://beej.us/guide/bgnet/pdf/bgnet_usl_c_1.pdf
+https://docs.google.com/document/d/1nk1PQZMmD7F-jAfEXxby0B0TZW4BIATO1z0F08Ot7vA/edit#
