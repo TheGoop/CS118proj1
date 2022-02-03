@@ -8,7 +8,10 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
+#define MESSAGE_LENGTH 1024
 #define MY_PORT "8080"
 #define BACKLOG_NUMBER 5 // the number of connections allowed on queue for connect
 // ususally 5 or 10 is acceptable, system limits silently on 20
@@ -23,12 +26,39 @@ void sigchild_handler(int s)
   errno = saved_errno;
 }
 
-void handle_client(int socket_fd)
+void respond_to_client(int socket_fd)
 {
+  char buffer[MESSAGE_LENGTH];
+
+  memset(buffer, 0, sizeof(buffer));
+
+  int bytes_read = recv(socket_fd, buffer, MESSAGE_LENGTH, 0);
+  if (bytes_read == -1)
+  {
+    perror("recv error");
+    exit(1);
+  }
+
+  // means that the connection has closed
+  else if (bytes_read == 0)
+  {
+    if (close(socket_fd) == -1)
+    {
+      perror("Close error");
+      exit(1);
+    }
+    return;
+  }
+
+  else
+  {
+    fwrite(buffer, MESSAGE_LENGTH, 1, stdout);
+  }
 }
 
 void web_server()
 {
+  printf("Starting Web Server...\n");
   // setup general structs and stuff
   int status;
   struct addrinfo hints;
@@ -121,10 +151,10 @@ void web_server()
       exit(1);
     }
 
-    if (pid == 0) // if we are the child
+    else if (pid == 0) // if we are the child
     {
       close(sockfd); // child doesn't need the listener
-      handle_client(new_fd);
+      respond_to_client(new_fd);
       exit(0);
     }
     else
@@ -136,5 +166,7 @@ void web_server()
 
 int main(int argc, char *argv[])
 {
+  printf("Starting Program...\n");
+  web_server();
   return 0;
 }
