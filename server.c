@@ -7,9 +7,12 @@
 #include <unistd.h>
 
 #include <errno.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <ctype.h>
+
+#include <dirent.h>
 
 #define MESSAGE_LENGTH 1024
 #define MY_PORT "8080"
@@ -18,6 +21,8 @@
 
 #define SUCCESS_STATUS "HTTP/1.1 200 OK\n"
 #define NOT_FOUND_HEADER "HTTP/1.1 404 Not Found\n\n<html><body><h1>404 Not Found</h1></body></html>"
+#define CONTENT_TYPE "Content-Type: "
+#define CONTENT_LENGTH "Content-Length: "
 
 void sigchild_handler(int s)
 {
@@ -43,13 +48,59 @@ int find_filename(char *buffer, int *filename_length)
   // printf("%s\n", buffer);
   char *start = pch + strlen(prefix);
   char *end = strchr(start, ' ');
+  if (end == NULL)
+  {
+    return -1;
+  }
   *filename_length = end - start;
   return buffer - pch + strlen(prefix);
 }
 
-char *construct_message(char *buffer)
+void get_file_type(char *filename, char **file_type)
 {
-  printf("construct_message()\n");
+  char *file_ext = strchr(filename, '.');
+  if (file_ext == NULL)
+  {
+    *file_type = "application/octet-stream";
+  }
+  else
+  {
+    // plain text files
+    if (strcmp(file_ext, ".txt") == 0)
+    {
+      *file_type = "text/plain";
+    }
+    else if (strcmp(file_ext, ".html") == 0 || strcmp(file_ext, ".htm") == 0)
+    {
+      *file_type = "text/html";
+    }
+    // static image files
+    else if (strcmp(file_ext, ".png") == 0)
+    {
+      *file_type = "image/png";
+    }
+    else if (strcmp(file_ext, ".jpeg") == 0 || strcmp(file_ext, ".jpg") == 0)
+    {
+      *file_type = "image/jpeg";
+    }
+    else if (strcmp(file_ext, ".gif") == 0)
+    {
+      *file_type = "image/gif";
+    }
+    else
+    {
+      *file_type = "n/a";
+    }
+  }
+}
+
+int get_file_length(char *filename)
+{
+}
+
+void *send_response(char *buffer, int socket_fd)
+{
+  // printf("construct_message()\n");
   /*
     GET /test1.jpeg HTTP/1.1
     Host: localhost:8080
@@ -65,18 +116,107 @@ char *construct_message(char *buffer)
   {
     fprintf(stderr, "Bad filename\n");
     exit(1);
-    // TODO: Implement case for bad filename given
+    // TODO: Implement case for no filename given
     // (just return error 404 message)
   }
 
-  printf("Filename starts at %d and is %d long.\n", filename_pos, filename_length);
-
+  // printf("Filename starts at %d and is %d long.\n", filename_pos, filename_length);
   char filename[filename_length + 1];
   strncpy(filename, &buffer[filename_pos], filename_length);
   filename[filename_length] = '\0';
-  printf("Filename is %s\n", filename);
+  // printf("File name is %s\n", filename);
 
-  return "";
+  // now convert filename to lower case
+  char *filename_lower = calloc(strlen(filename) + 1, sizeof(char));
+  for (size_t i = 0; i < strlen(filename); ++i)
+  {
+    filename_lower[i] = tolower((unsigned char)filename[i]);
+  }
+  // printf("%s\n", filename_lower);
+
+  struct dirent *de;
+  DIR *dr = opendir(".");
+
+  if (dr == NULL)
+  {
+    perror("Could not open current directory\n");
+    exit(1);
+  }
+
+  int match = 0;
+  char *matched_file_name = NULL;
+  while ((de = readdir(dr)) != NULL && match == 0)
+  {
+    char *local_file = de->d_name;
+    char *local_file_lower = calloc(strlen(local_file) + 1, sizeof(char));
+    for (size_t i = 0; i < strlen(local_file); ++i)
+    {
+      local_file_lower[i] = tolower((unsigned char)local_file[i]);
+    }
+    // printf("%s %s\n", local_file, local_file_lower);
+    //
+    if (local_file[0] == '.')
+    {
+      // printf("Skipped\n");
+    }
+    else
+    {
+      char *pch = strstr(local_file_lower, ".");
+      if (pch != NULL)
+      {
+        int pos = pch - local_file_lower;
+        // printf("%s %d\n", local_file, pos);
+
+        char local_file_lower_no_ext[pos + 1];
+
+        strncpy(local_file_lower_no_ext, &local_file_lower[0], pos + 1);
+        local_file_lower_no_ext[pos] = '\0';
+        // printf("The original string is: %s\n", local_file);
+        // printf("Without Extension is: %s\n", local_file_lower_no_ext);
+
+        if (strcmp(filename_lower, local_file_lower) == 0 || strcmp(filename_lower, local_file_lower_no_ext) == 0)
+        {
+          match = 1;
+          matched_file_name = local_file;
+        }
+      }
+    }
+    free(local_file_lower);
+  }
+  free(filename_lower);
+  char *message;
+  if (match == 0)
+  {
+    printf("Matches no file\n");
+    // no files matched
+    // send error 404
+    message = malloc(strlen(NOT_FOUND_HEADER) + 1);
+    strcpy(message, NOT_FOUND_HEADER);
+
+    int bytes_written = send(socket_fd, message, MESSAGE_LENGTH, 0);
+  }
+  else
+  {
+    printf("MATCHED: %s\n", matched_file_name);
+
+    char *file_type;
+    get_file_type(matched_file_name, &file_type);
+
+    int file_length = get_file_length(matched_file_name);
+
+    message = malloc(MESSAGE_LENGTH + 1);
+    strcpy(message, SUCCESS_STATUS);
+    strcat(message, CONTENT_TYPE);
+    strcat(message, file_type);
+    strcat(message, "\n");
+    strcat(message, CONTENT_LENGTH);
+    strcat(message, "27012\n\n");
+    strcat(message, "<DATA>\n");
+
+    int bytes_written = send(socket_fd, message, MESSAGE_LENGTH, 0);
+    // strcat(message, filedata)
+  }
+  free(message);
 }
 
 void respond_to_client(int socket_fd)
@@ -84,7 +224,6 @@ void respond_to_client(int socket_fd)
 
   // printf("Respond_to_client()\n");
   char buffer[MESSAGE_LENGTH];
-  char message_buffer[MESSAGE_LENGTH] = NOT_FOUND_HEADER;
 
   memset(buffer, 0, sizeof(buffer));
 
@@ -110,10 +249,10 @@ void respond_to_client(int socket_fd)
   // printf("--------\nMessage Recieved: \n%s\n--------\n", buffer);
 
   // construct message here
-  char *message = construct_message(buffer);
+  send_response(buffer, socket_fd);
+  // printf("Message: %s\n", message);
 
   // send message
-  int bytes_written = send(socket_fd, message_buffer, MESSAGE_LENGTH, 0);
   // printf("--------\nMessage Sent: \n%s\n--------\n", message_buffer);
 
   memset(buffer, 0, sizeof(buffer));
