@@ -16,6 +16,9 @@
 #define BACKLOG_NUMBER 5 // the number of connections allowed on queue for connect
 // ususally 5 or 10 is acceptable, system limits silently on 20
 
+#define SUCCESS_STATUS "HTTP/1.1 200 OK\n"
+#define NOT_FOUND_HEADER "HTTP/1.1 404 Not Found\n\n<html><body><h1>404 Not Found</h1></body></html>"
+
 void sigchild_handler(int s)
 {
   // waitpid() might overwrite errno, so we save and restore it:
@@ -26,9 +29,62 @@ void sigchild_handler(int s)
   errno = saved_errno;
 }
 
+int find_filename(char *buffer, int *filename_length)
+{
+  // find beginning of filename
+  char *prefix = "GET /";
+  char *pch = strstr(buffer, prefix);
+  if (pch == NULL)
+  {
+    return -1;
+  }
+  // int pos = pch - buffer + strlen(prefix) - 1;
+  // printf("Filename starts at %d\n", pos);
+  // printf("%s\n", buffer);
+  char *start = pch + strlen(prefix);
+  char *end = strchr(start, ' ');
+  *filename_length = end - start;
+  return buffer - pch + strlen(prefix);
+}
+
+char *construct_message(char *buffer)
+{
+  printf("construct_message()\n");
+  /*
+    GET /test1.jpeg HTTP/1.1
+    Host: localhost:8080
+    User-Agent: curl/7.65.2
+    Accept: Asterix/Asterix
+  */
+
+  printf("--------\nMessage Recieved: \n%s\n--------\n", buffer);
+
+  int filename_length;
+  int filename_pos = find_filename(buffer, &filename_length);
+  if (filename_pos == -1)
+  {
+    fprintf(stderr, "Bad filename\n");
+    exit(1);
+    // TODO: Implement case for bad filename given
+    // (just return error 404 message)
+  }
+
+  printf("Filename starts at %d and is %d long.\n", filename_pos, filename_length);
+
+  char filename[filename_length + 1];
+  strncpy(filename, &buffer[filename_pos], filename_length);
+  filename[filename_length] = '\0';
+  printf("Filename is %s\n", filename);
+
+  return "";
+}
+
 void respond_to_client(int socket_fd)
 {
+
+  // printf("Respond_to_client()\n");
   char buffer[MESSAGE_LENGTH];
+  char message_buffer[MESSAGE_LENGTH] = NOT_FOUND_HEADER;
 
   memset(buffer, 0, sizeof(buffer));
 
@@ -47,18 +103,24 @@ void respond_to_client(int socket_fd)
       perror("Close error");
       exit(1);
     }
+    // printf("Close connection...\n");
     return;
   }
 
-  else
-  {
-    fwrite(buffer, MESSAGE_LENGTH, 1, stdout);
-  }
+  // printf("--------\nMessage Recieved: \n%s\n--------\n", buffer);
+
+  // construct message here
+  char *message = construct_message(buffer);
+
+  // send message
+  int bytes_written = send(socket_fd, message_buffer, MESSAGE_LENGTH, 0);
+  // printf("--------\nMessage Sent: \n%s\n--------\n", message_buffer);
+
+  memset(buffer, 0, sizeof(buffer));
 }
 
 void web_server()
 {
-  printf("Starting Web Server...\n");
   // setup general structs and stuff
   int status;
   struct addrinfo hints;
@@ -132,7 +194,8 @@ void web_server()
 
   int new_fd;
   int pid;
-  printf("server: waiting for connections...\n");
+  int c = 0;
+  // printf("server: waiting for connections...\n");
   while (1)
   {
     new_fd = accept(sockfd, (struct sockaddr *)&host_addr, &addr_len);
@@ -151,7 +214,7 @@ void web_server()
       exit(1);
     }
 
-    else if (pid == 0) // if we are the child
+    if (pid == 0) // if we are the child
     {
       close(sockfd); // child doesn't need the listener
       respond_to_client(new_fd);
@@ -166,7 +229,6 @@ void web_server()
 
 int main(int argc, char *argv[])
 {
-  printf("Starting Program...\n");
   web_server();
   return 0;
 }

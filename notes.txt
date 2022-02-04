@@ -28,3 +28,6 @@ getaddrinfo() - preparation for launch
 p25
 http://beej.us/guide/bgnet/pdf/bgnet_usl_c_1.pdf
 https://docs.google.com/document/d/1nk1PQZMmD7F-jAfEXxby0B0TZW4BIATO1z0F08Ot7vA/edit#
+
+
+https://www.delftstack.com/howto/c/get-c-substring/
