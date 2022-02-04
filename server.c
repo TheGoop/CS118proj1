@@ -14,6 +14,8 @@
 
 #include <dirent.h>
 
+#include <sys/stat.h>
+
 #define MESSAGE_LENGTH 1024
 #define MY_PORT "8080"
 #define BACKLOG_NUMBER 5 // the number of connections allowed on queue for connect
@@ -96,6 +98,9 @@ void get_file_type(char *filename, char **file_type)
 
 int get_file_length(char *filename)
 {
+  struct stat st;
+  stat(filename, &st);
+  return st.st_size;
 }
 
 void *send_response(char *buffer, int socket_fd)
@@ -202,7 +207,12 @@ void *send_response(char *buffer, int socket_fd)
     char *file_type;
     get_file_type(matched_file_name, &file_type);
 
-    int file_length = get_file_length(matched_file_name);
+    int file_length_dec = get_file_length(matched_file_name);
+    // printf("Length: %d\n", file_length_dec);
+
+    char file_length[50];
+    sprintf(file_length, "%d\n\n", file_length_dec);
+    // printf("Length: %s\n", file_length);
 
     message = malloc(MESSAGE_LENGTH + 1);
     strcpy(message, SUCCESS_STATUS);
@@ -210,9 +220,10 @@ void *send_response(char *buffer, int socket_fd)
     strcat(message, file_type);
     strcat(message, "\n");
     strcat(message, CONTENT_LENGTH);
-    strcat(message, "27012\n\n");
+    strcat(message, file_length);
     strcat(message, "<DATA>\n");
 
+    printf("Sending Message: \n%s\n", message);
     int bytes_written = send(socket_fd, message, MESSAGE_LENGTH, 0);
     // strcat(message, filedata)
   }
