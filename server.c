@@ -197,29 +197,51 @@ void send_response(char *buffer, int socket_fd)
   memmove(pch, pch + 1, strlen(pch));
   // should be "test1.jpeg" or "t est1.jpeg"
 
-  // now must replace all " " with "%20"
+  // now must replace all "%20" with " "
   int size_pch = strlen(pch) + 1;
-  char filename[size_pch * 3]; // we are replacing " " with %20
-  // so worst case is the string triples in size
+  char filename[size_pch]; // we are replacing "%20" with " "
+  // so worst case is the string normal size
+
+  char f_2;
+  char f_1;
+  char curr;
+  int i = 0;
   int j = 0;
-  for (size_t i = 0; i < strlen(pch); i++)
+  while (i < strlen(pch) - 2)
   {
+    curr = pch[i];
+    f_1 = pch[i + 1];
+    f_2 = pch[i + 2];
+
     // printf("%c", pch[i]);
-    if (pch[i] != ' ')
+    if (curr == '%' && f_1 == '2' && f_2 == '0')
     {
-      filename[j] = pch[i];
+      filename[j] = ' ';
       j += 1;
+      i += 3;
     }
     else
     {
-      filename[j] = '%';
+      filename[j] = pch[i];
       j += 1;
-      filename[j] = '2';
-      j += 1;
-      filename[j] = '0';
-      j += 1;
+      i += 1;
     }
   }
+
+  if (i == strlen(pch) - 1)
+  {
+    filename[j] = pch[i];
+    j += 1;
+  }
+  else if (i == strlen(pch) - 2)
+  {
+    filename[j] = pch[i];
+    j += 1;
+    i += 1;
+    filename[j] = pch[i];
+    j += 1;
+  }
+
   filename[j] = '\0';
   // printf("Filename: %s", filename);
   // return;
@@ -276,8 +298,10 @@ void send_response(char *buffer, int socket_fd)
         // printf("The original string is: %s\n", local_file);
         // printf("Without Extension is: %s\n", local_file_lower_no_ext);
 
+        // printf("%s, %s, %d", filename_lower, local_file_lower, local_file_lower_no_ext);
         if (strcmp(filename_lower, local_file_lower) == 0 || strcmp(filename_lower, local_file_lower_no_ext) == 0)
         {
+          // printf("---------------HERE----------------\n");
           match = 1;
           matched_file_name = local_file;
         }
@@ -417,7 +441,7 @@ void web_server()
 
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC;     // we dont care to specify ipv4 or ipv6
-  hints.ai_socktype = SOCK_STREAM; //tcp stream sockets
+  hints.ai_socktype = SOCK_STREAM; // tcp stream sockets
   hints.ai_flags = AI_PASSIVE;     // fill in my local IP for me
 
   //  node is NULL because we are not connecting to an external host or IP
@@ -439,7 +463,7 @@ void web_server()
     exit(1);
   }
 
-  //prevent address in use error by allowing reusal of socket
+  // prevent address in use error by allowing reusal of socket
   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1)
   {
     perror("setsockopt");
