@@ -60,7 +60,14 @@ int find_filename(char *buffer, int *filename_length)
 
 void get_file_type(char *filename, char **file_type)
 {
-  char *file_ext = strchr(filename, '.');
+  char *filename_lower = calloc(strlen(filename) + 1, sizeof(char));
+  for (size_t i = 0; i < strlen(filename); ++i)
+  {
+    filename_lower[i] = tolower((unsigned char)filename[i]);
+  }
+
+  char *file_ext = strchr(filename_lower, '.');
+
   if (file_ext == NULL)
   {
     *file_type = "application/octet-stream";
@@ -94,6 +101,7 @@ void get_file_type(char *filename, char **file_type)
       *file_type = "n/a";
     }
   }
+  free(filename_lower);
 }
 
 int get_file_length(char *filename)
@@ -113,7 +121,7 @@ void *send_response(char *buffer, int socket_fd)
     Accept: Asterix/Asterix
   */
 
-  printf("--------\nMessage Recieved: \n%s\n--------\n", buffer);
+  // printf("--------\nMessage Recieved: \n%s\n--------\n", buffer);
 
   int filename_length;
   int filename_pos = find_filename(buffer, &filename_length);
@@ -192,7 +200,7 @@ void *send_response(char *buffer, int socket_fd)
   char *message;
   if (match == 0)
   {
-    printf("Matches no file\n");
+    // printf("Matches no file\n");
     // no files matched
     // send error 404
     message = malloc(strlen(NOT_FOUND_HEADER) + 1);
@@ -202,7 +210,7 @@ void *send_response(char *buffer, int socket_fd)
   }
   else
   {
-    printf("MATCHED: %s\n", matched_file_name);
+    // printf("MATCHED: %s\n", matched_file_name);
 
     char *file_type;
     get_file_type(matched_file_name, &file_type);
@@ -223,7 +231,7 @@ void *send_response(char *buffer, int socket_fd)
     strcat(message, file_length);
     // strcat(message, "<DATA>\n");
     int size = strlen(message);
-    printf("Sending Message of length  %d: \n%s\n", size, message);
+    // printf("Sending Message of length  %d: \n%s\n", size, message);
     int bytes_written = send(socket_fd, message, size, 0);
     if (bytes_written == -1)
     {
@@ -254,7 +262,7 @@ void *send_response(char *buffer, int socket_fd)
         }
         memset(buffer, 0, sizeof buffer);
       }
-      printf("Bytes written: %d\n", total_bytes);
+      // printf("Bytes written: %d\n", total_bytes);
     }
 
     // strcat(message, filedata)
@@ -290,6 +298,7 @@ void respond_to_client(int socket_fd)
   }
 
   // printf("--------\nMessage Recieved: \n%s\n--------\n", buffer);
+  printf("%s\n", buffer);
 
   // construct message here
   send_response(buffer, socket_fd);
