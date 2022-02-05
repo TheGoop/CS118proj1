@@ -111,6 +111,35 @@ int get_file_length(char *filename)
   return st.st_size;
 }
 
+int get_filename(char *buffer, char **filename, int *length)
+{
+  // find beginning of filename
+  char *pch = strstr(buffer, " HTTP/");
+  if (pch == NULL)
+  {
+    return -1;
+  }
+  int endPos = pch - buffer;
+  // printf("%d\n", endPos);
+  char firstLine[endPos + 1];
+  strncpy(firstLine, buffer, endPos);
+  firstLine[endPos] = '\0';
+  // printf("%s\n", firstLine);
+  // GET /tes t1.jpeg HTTP/1.1
+
+  pch = strchr(firstLine, '/');
+  if (pch == NULL)
+  {
+    return -1;
+  }
+  // printf("%s\n", pch);
+  memmove(pch, pch + 1, strlen(pch));
+  *filename = pch;
+  *length = endPos - 4;
+  // printf("\n");
+  return 0;
+}
+
 void send_response(char *buffer, int socket_fd)
 {
   // printf("construct_message()\n");
@@ -135,9 +164,68 @@ void send_response(char *buffer, int socket_fd)
   }
 
   // printf("Filename starts at %d and is %d long.\n", filename_pos, filename_length);
-  char filename[filename_length + 1];
-  strncpy(filename, &buffer[filename_pos], filename_length);
-  filename[filename_length] = '\0';
+
+  // ----------------------
+  // TIME TO GET FILENAME FROM BUFFER
+
+  char *pch = strstr(buffer, " HTTP/");
+  if (pch == NULL)
+  {
+    char *message = malloc(strlen(NOT_FOUND_HEADER) + 1);
+    strcpy(message, NOT_FOUND_HEADER);
+    int bytes_written = send(socket_fd, message, strlen(NOT_FOUND_HEADER) + 1, 0);
+    free(message);
+    return;
+  }
+
+  // should be "GET /test1.jpeg" now
+  int endPos = pch - buffer;
+  char firstLine[endPos + 1];
+  strncpy(firstLine, buffer, endPos);
+  firstLine[endPos] = '\0';
+
+  pch = strchr(firstLine, '/');
+  // should be "/test1.jpeg" or "/t est1.jpeg"
+  if (pch == NULL)
+  {
+    char *message = malloc(strlen(NOT_FOUND_HEADER) + 1);
+    strcpy(message, NOT_FOUND_HEADER);
+    int bytes_written = send(socket_fd, message, strlen(NOT_FOUND_HEADER) + 1, 0);
+    free(message);
+    return;
+  }
+  memmove(pch, pch + 1, strlen(pch));
+  // should be "test1.jpeg" or "t est1.jpeg"
+
+  // now must replace all " " with "%20"
+  int size_pch = strlen(pch) + 1;
+  char filename[size_pch * 3]; // we are replacing " " with %20
+  // so worst case is the string triples in size
+  int j = 0;
+  for (size_t i = 0; i < strlen(pch); i++)
+  {
+    // printf("%c", pch[i]);
+    if (pch[i] != ' ')
+    {
+      filename[j] = pch[i];
+      j += 1;
+    }
+    else
+    {
+      filename[j] = '%';
+      j += 1;
+      filename[j] = '2';
+      j += 1;
+      filename[j] = '0';
+      j += 1;
+    }
+  }
+  filename[j] = '\0';
+  // printf("Filename: %s", filename);
+  // return;
+
+  // -----------------------
+
   // printf("File name is %s\n", filename);
 
   // now convert filename to lower case
