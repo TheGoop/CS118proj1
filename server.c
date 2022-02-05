@@ -16,7 +16,7 @@
 
 #include <sys/stat.h>
 
-#define MESSAGE_LENGTH 1024
+#define MESSAGE_LENGTH 1000
 #define MY_PORT "8080"
 #define BACKLOG_NUMBER 5 // the number of connections allowed on queue for connect
 // ususally 5 or 10 is acceptable, system limits silently on 20
@@ -221,10 +221,42 @@ void *send_response(char *buffer, int socket_fd)
     strcat(message, "\n");
     strcat(message, CONTENT_LENGTH);
     strcat(message, file_length);
-    strcat(message, "<DATA>\n");
+    // strcat(message, "<DATA>\n");
+    int size = strlen(message);
+    printf("Sending Message of length  %d: \n%s\n", size, message);
+    int bytes_written = send(socket_fd, message, size, 0);
+    if (bytes_written == -1)
+    {
+      perror("Send error");
+      exit(1);
+    }
+    // printf("%d Bytes sent\n", bytes_written);
 
-    printf("Sending Message: \n%s\n", message);
-    int bytes_written = send(socket_fd, message, MESSAGE_LENGTH, 0);
+    FILE *file = NULL;
+    unsigned char buffer[MESSAGE_LENGTH];
+    size_t bytes_read = 0;
+
+    file = fopen(matched_file_name, "rb");
+
+    int total_bytes = 0;
+    if (file != NULL)
+    {
+      while ((bytes_read = fread(buffer, 1, MESSAGE_LENGTH, file) > 0))
+      {
+        // printf("Sending: %s\n", buffer);
+        bytes_written = send(socket_fd, buffer, sizeof(buffer), 0);
+        total_bytes += bytes_written;
+        // printf("Writing %d bytes\n", bytes_written);
+        if (bytes_written == -1)
+        {
+          perror("Send error");
+          exit(1);
+        }
+        memset(buffer, 0, sizeof buffer);
+      }
+      printf("Bytes written: %d\n", total_bytes);
+    }
+
     // strcat(message, filedata)
   }
   free(message);
