@@ -16,7 +16,7 @@
 
 #include <sys/stat.h>
 
-#define MESSAGE_LENGTH 1000
+#define MESSAGE_LENGTH 1024
 #define MY_PORT "8080"
 #define BACKLOG_NUMBER 5 // the number of connections allowed on queue for connect
 // ususally 5 or 10 is acceptable, system limits silently on 20
