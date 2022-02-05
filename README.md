@@ -40,8 +40,35 @@ Passed 6 tests, 0 failed
 
 ## TODO
 
-    ###########################################################
-    ##                                                       ##
-    ## REPLACE CONTENT OF THIS FILE WITH YOUR PROJECT REPORT ##
-    ##                                                       ##
-    ###########################################################
+#### High Level Design
+
+For the server, I adopted much of the design given in Beej's Guide on web servers. The program starts off as a master process with a socket bound to local port 8080 waiting for requests. When there is a request, the master process spawns a child process that handles actually responding to the request, then continues waiting for more requests to spawn child processes for.
+
+The child process when spawned reads the request, and then parses the request for the file name requested. Once it gets this name, it checks the local directory for the presence of such a file. If the file name requested has an extension, it looks for an exact match, if it has no extension, then the child just looks for a file with a matching name. If there is no matching file, the process immediately returns an error status 404. However, if it finds a match the process obtains the necessary information and sends it back with a status 200 in batches of 1024 bytes.
+
+#### Problems
+
+1. One cannot send a large file all at once. I fixed this by sending in batches of 1024 bytes as recommended by Beej's Guide.
+
+2. String parsing the request proved to be very annoying. I didn't really have any fix for this except learning by trial and error with multiple char * approaches. My code is kind of messy because of this.
+
+3. All libraries used are here:
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <sys/stat.h>
+
+All of these are standard libraries though, with no external dependencies.
+
+#### Acknowledgements
+
+Much code was directly paraphrased from Beej’s Guide to Network Programming Using Internet Sockets, a source provided by the Professor in the project spec. The header used in NOT_FOUND_HEADER was found online on StackOverflow.

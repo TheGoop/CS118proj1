@@ -111,7 +111,7 @@ int get_file_length(char *filename)
   return st.st_size;
 }
 
-void *send_response(char *buffer, int socket_fd)
+void send_response(char *buffer, int socket_fd)
 {
   // printf("construct_message()\n");
   /*
@@ -127,10 +127,11 @@ void *send_response(char *buffer, int socket_fd)
   int filename_pos = find_filename(buffer, &filename_length);
   if (filename_pos == -1)
   {
-    fprintf(stderr, "Bad filename\n");
-    exit(1);
-    // TODO: Implement case for no filename given
-    // (just return error 404 message)
+    char *message = malloc(strlen(NOT_FOUND_HEADER) + 1);
+    strcpy(message, NOT_FOUND_HEADER);
+    int bytes_written = send(socket_fd, message, strlen(NOT_FOUND_HEADER) + 1, 0);
+    free(message);
+    return;
   }
 
   // printf("Filename starts at %d and is %d long.\n", filename_pos, filename_length);
@@ -206,7 +207,9 @@ void *send_response(char *buffer, int socket_fd)
     message = malloc(strlen(NOT_FOUND_HEADER) + 1);
     strcpy(message, NOT_FOUND_HEADER);
 
-    int bytes_written = send(socket_fd, message, MESSAGE_LENGTH, 0);
+    int bytes_written = send(socket_fd, message, strlen(NOT_FOUND_HEADER) + 1, 0);
+
+    free(message);
   }
   else
   {
@@ -265,9 +268,9 @@ void *send_response(char *buffer, int socket_fd)
       // printf("Bytes written: %d\n", total_bytes);
     }
 
+    free(message);
     // strcat(message, filedata)
   }
-  free(message);
 }
 
 void respond_to_client(int socket_fd)
@@ -409,6 +412,7 @@ void web_server()
     {
       close(sockfd); // child doesn't need the listener
       respond_to_client(new_fd);
+      close(new_fd); // child when finished responding closes the socket with request
       exit(0);
     }
     else
